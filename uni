@@ -1,0 +1,399 @@
+Cədvəllər üçün Migrasiyalar
+Tələbələr (Students) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000001_create_students_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateStudentsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('students', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->date('enrollment_date');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('students');
+    }
+}
+Müəllimlər (Teachers) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000002_create_teachers_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateTeachersTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('teachers', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->date('hire_date');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('teachers');
+    }
+}
+Kurslar (Courses) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000003_create_courses_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateCoursesTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('courses', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description');
+            $table->foreignId('teacher_id')->constrained('teachers');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('courses');
+    }
+}
+Qeydiyyatlar (Enrollments) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000004_create_enrollments_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateEnrollmentsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('enrollments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('student_id')->constrained('students');
+            $table->foreignId('course_id')->constrained('courses');
+            $table->date('enrollment_date');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('enrollments');
+    }
+}
+Modellər
+Student Modeli:
+php
+Копировать код
+// app/Models/Student.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Student extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'email', 'enrollment_date'];
+}
+Teacher Modeli:
+php
+Копировать код
+// app/Models/Teacher.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Teacher extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'email', 'hire_date'];
+}
+Course Modeli:
+php
+Копировать код
+// app/Models/Course.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Course extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description', 'teacher_id'];
+
+    public function teacher()
+    {
+        return $this->belongsTo(Teacher::class);
+    }
+}
+Enrollment Modeli:
+php
+Копировать код
+// app/Models/Enrollment.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Enrollment extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['student_id', 'course_id', 'enrollment_date'];
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+}
+Kontrollerlər
+StudentController:
+php
+Копировать код
+// app/Http/Controllers/StudentController.php
+namespace App\Http\Controllers;
+
+use App\Models\Student;
+use Illuminate\Http\Request;
+
+class StudentController extends Controller
+{
+    public function index()
+    {
+        $students = Student::all();
+        return view('students.index', compact('students'));
+    }
+
+    public function create()
+    {
+        return view('students.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:students',
+            'enrollment_date' => 'required|date',
+        ]);
+
+        Student::create($request->all());
+
+        return redirect()->route('students.index')
+                        ->with('success', 'Student created successfully.');
+    }
+
+    public function show(Student $student)
+    {
+        return view('students.show', compact('student'));
+    }
+
+    public function edit(Student $student)
+    {
+        return view('students.edit', compact('student'));
+    }
+
+    public function update(Request $request, Student $student)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:students,email,' . $student->id,
+            'enrollment_date' => 'required|date',
+        ]);
+
+        $student->update($request->all());
+
+        return redirect()->route('students.index')
+                        ->with('success', 'Student updated successfully.');
+    }
+
+    public function destroy(Student $student)
+    {
+        $student->delete();
+
+        return redirect()->route('students.index')
+                        ->with('success', 'Student deleted successfully.');
+    }
+}
+TeacherController:
+php
+Копировать код
+// app/Http/Controllers/TeacherController.php
+namespace App\Http\Controllers;
+
+use App\Models\Teacher;
+use Illuminate\Http\Request;
+
+class TeacherController extends Controller
+{
+    public function index()
+    {
+        $teachers = Teacher::all();
+        return view('teachers.index', compact('teachers'));
+    }
+
+    public function create()
+    {
+        return view('teachers.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:teachers',
+            'hire_date' => 'required|date',
+        ]);
+
+        Teacher::create($request->all());
+
+        return redirect()->route('teachers.index')
+                        ->with('success', 'Teacher created successfully.');
+    }
+
+    public function show(Teacher $teacher)
+    {
+        return view('teachers.show', compact('teacher'));
+    }
+
+    public function edit(Teacher $teacher)
+    {
+        return view('teachers.edit', compact('teacher'));
+    }
+
+    public function update(Request $request, Teacher $teacher)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:teachers,email,' . $teacher->id,
+            'hire_date' => 'required|date',
+        ]);
+
+        $teacher->update($request->all());
+
+        return redirect()->route('teachers.index')
+                        ->with('success', 'Teacher updated successfully.');
+    }
+
+    public function destroy(Teacher $teacher)
+    {
+        $teacher->delete();
+
+        return redirect()->route('teachers.index')
+                        ->with('success', 'Teacher deleted successfully.');
+    }
+}
+CourseController:
+php
+Копировать код
+// app/Http/Controllers/CourseController.php
+namespace App\Http\Controllers;
+
+use App\Models\Course;
+use App\Models\Teacher;
+use Illuminate\Http\Request;
+
+class CourseController extends Controller
+{
+    public function index()
+    {
+        $courses = Course::with('teacher')->get();
+        return view('courses.index', compact('courses'));
+    }
+
+    public function create()
+    {
+        $teachers = Teacher::all();
+        return view('courses.create', compact('teachers'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'required',
+            'teacher_id' => 'required|exists:teachers,id',
+        ]);
+
+        Course::create($request->all());
+
+        return redirect()->route('courses.index')
+                        ->with('success', 'Course created successfully.');
+    }
+
+    public function show(Course $course)
+    {
+        return view('courses.show', compact('course'));
+    }
+
+    public function edit(Course $course)
+    {
+        $teachers = Teacher::all();
+        return view('courses.edit', compact('course', 'teachers'));
+    }
+
+    public function update(Request $request, Course $course)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'required',
+            'teacher_id' => 'required|exists:teachers,id',
+        ]);
+
+        $course->update($request->all());
+
+        return redirect()->route('courses.index')
+                        ->with('success', 'Course updated successfully.');
+    }
+
+    public function destroy(Course $course)
+    {
+
+Bütün CRUD əməliyyatları üçün resurs marşrutlarını təyin etmək üçün Laravel resurs marşrutlarından istifadə edirik. Resurs marşrutları kontrollerdə olan CRUD metodlarını avtomatik olaraq təyin edir.
+
+Marşrutlar (Routes)
+Web Marşrutlar Faylı (routes/web.php):
+php
+Копировать код
+use App\Http\Controllers\StudentController;
+use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\EnrollmentController;
+
+Route::resource('students', StudentController::class);
+Route::resource('teachers', TeacherController::class);
+Route::resource('courses', CourseController::class);
+Route::resource('enrollments', EnrollmentController::class);
