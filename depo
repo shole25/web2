@@ -1,0 +1,507 @@
+Depo (warehouse) sistemi üçün əsas funksiyaları əhatə edən CRUD əməliyyatları ilə birlikdə cədvəllər, modellər, kontrollerlər və marşrutlar yaratmaq üçün Laravel-i istifadə edək. Aşağıdakı nümunə məhsullar (Products), kateqoriyalar (Categories), anbarlar (Warehouses), və anbar inventarları (WarehouseInventories) cədvəllərini əhatə edir.
+
+Cədvəllər üçün Migrasiyalar
+Məhsullar (Products) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000001_create_products_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateProductsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->decimal('price', 8, 2);
+            $table->foreignId('category_id')->constrained('categories');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('products');
+    }
+}
+Kateqoriyalar (Categories) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000002_create_categories_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateCategoriesTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('categories');
+    }
+}
+Anbarlar (Warehouses) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000003_create_warehouses_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateWarehousesTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('warehouses', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('location');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('warehouses');
+    }
+}
+Anbar İnventarları (WarehouseInventories) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000004_create_warehouse_inventories_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateWarehouseInventoriesTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('warehouse_inventories', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('warehouse_id')->constrained('warehouses');
+            $table->foreignId('product_id')->constrained('products');
+            $table->integer('quantity');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('warehouse_inventories');
+    }
+}
+Modellər
+Product Modeli:
+php
+Копировать код
+// app/Models/Product.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Product extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description', 'price', 'category_id'];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function warehouses()
+    {
+        return $this->belongsToMany(Warehouse::class, 'warehouse_inventories')
+                    ->withPivot('quantity')
+                    ->withTimestamps();
+    }
+}
+Category Modeli:
+php
+Копировать код
+// app/Models/Category.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Category extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description'];
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+}
+Warehouse Modeli:
+php
+Копировать код
+// app/Models/Warehouse.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Warehouse extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'location'];
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'warehouse_inventories')
+                    ->withPivot('quantity')
+                    ->withTimestamps();
+    }
+}
+WarehouseInventory Modeli:
+php
+Копировать код
+// app/Models/WarehouseInventory.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class WarehouseInventory extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['warehouse_id', 'product_id', 'quantity'];
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+}
+Kontrollerlər
+ProductController:
+php
+Копировать код
+// app/Http/Controllers/ProductController.php
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use App\Models\Category;
+use Illuminate\Http\Request;
+
+class ProductController extends Controller
+{
+    public function index()
+    {
+        $products = Product::with('category')->get();
+        return view('products.index', compact('products'));
+    }
+
+    public function create()
+    {
+        $categories = Category::all();
+        return view('products.create', compact('categories'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+            'price' => 'required|numeric',
+            'category_id' => 'required|exists:categories,id',
+        ]);
+
+        Product::create($request->all());
+
+        return redirect()->route('products.index')
+                        ->with('success', 'Product created successfully.');
+    }
+
+    public function show(Product $product)
+    {
+        return view('products.show', compact('product'));
+    }
+
+    public function edit(Product $product)
+    {
+        $categories = Category::all();
+        return view('products.edit', compact('product', 'categories'));
+    }
+
+    public function update(Request $request, Product $product)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+            'price' => 'required|numeric',
+            'category_id' => 'required|exists:categories,id',
+        ]);
+
+        $product->update($request->all());
+
+        return redirect()->route('products.index')
+                        ->with('success', 'Product updated successfully.');
+    }
+
+    public function destroy(Product $product)
+    {
+        $product->delete();
+
+        return redirect()->route('products.index')
+                        ->with('success', 'Product deleted successfully.');
+    }
+}
+CategoryController:
+php
+Копировать код
+// app/Http/Controllers/CategoryController.php
+namespace App\Http\Controllers;
+
+use App\Models\Category;
+use Illuminate\Http\Request;
+
+class CategoryController extends Controller
+{
+    public function index()
+    {
+        $categories = Category::all();
+        return view('categories.index', compact('categories'));
+    }
+
+    public function create()
+    {
+        return view('categories.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+        ]);
+
+        Category::create($request->all());
+
+        return redirect()->route('categories.index')
+                        ->with('success', 'Category created successfully.');
+    }
+
+    public function show(Category $category)
+    {
+        return view('categories.show', compact('category'));
+    }
+
+    public function edit(Category $category)
+    {
+        return view('categories.edit', compact('category'));
+    }
+
+    public function update(Request $request, Category $category)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+        ]);
+
+        $category->update($request->all());
+
+        return redirect()->route('categories.index')
+                        ->with('success', 'Category updated successfully.');
+    }
+
+    public function destroy(Category $category)
+    {
+        $category->delete();
+
+        return redirect()->route('categories.index')
+                        ->with('success', 'Category deleted successfully.');
+    }
+}
+WarehouseController:
+php
+Копировать код
+// app/Http/Controllers/WarehouseController.php
+namespace App\Http\Controllers;
+
+use App\Models\Warehouse;
+use Illuminate\Http\Request;
+
+class WarehouseController extends Controller
+{
+    public function index()
+    {
+        $warehouses = Warehouse::all();
+        return view('warehouses.index', compact('warehouses'));
+    }
+
+    public function create()
+    {
+        return view('warehouses.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'location' => 'required',
+        ]);
+
+        Warehouse::create($request->all());
+
+        return redirect()->route('warehouses.index')
+                        ->with('success', 'Warehouse created successfully.');
+    }
+
+    public function show(Warehouse $warehouse)
+    {
+        return view('warehouses.show', compact('warehouse'));
+    }
+
+    public function edit(Warehouse $warehouse)
+    {
+        return view('warehouses.edit', compact('warehouse'));
+    }
+
+    public function update(Request
+davami varmi?
+ChatGPT
+Hələ kiçik bir çoxluğu qalıb. Daxil edərək davam edək!
+
+WarehouseController (davamı):
+php
+Копировать код
+// app/Http/Controllers/WarehouseController.php
+namespace App\Http\Controllers;
+
+use App\Models\Warehouse;
+use Illuminate\Http\Request;
+
+class WarehouseController extends Controller
+{
+    // Digər metodlar burada yer alır
+    public function update(Request $request, Warehouse $warehouse)
+    {
+        $request->validate([
+            'name' => 'required',
+            'location' => 'required',
+        ]);
+
+        $warehouse->update($request->all());
+
+        return redirect()->route('warehouses.index')
+                        ->with('success', 'Warehouse updated successfully.');
+    }
+
+    public function destroy(Warehouse $warehouse)
+    {
+        $warehouse->delete();
+
+        return redirect()->route('warehouses.index')
+                        ->with('success', 'Warehouse deleted successfully.');
+    }
+}
+WarehouseInventoryController:
+php
+Копировать код
+// app/Http/Controllers/WarehouseInventoryController.php
+namespace App\Http\Controllers;
+
+use App\Models\WarehouseInventory;
+use Illuminate\Http\Request;
+
+class WarehouseInventoryController extends Controller
+{
+    public function index()
+    {
+        $warehouseInventories = WarehouseInventory::with('warehouse', 'product')->get();
+        return view('warehouse_inventories.index', compact('warehouseInventories'));
+    }
+
+    public function create()
+    {
+        return view('warehouse_inventories.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|integer|min:0',
+        ]);
+
+        WarehouseInventory::create($request->all());
+
+        return redirect()->route('warehouse_inventories.index')
+                        ->with('success', 'Warehouse inventory created successfully.');
+    }
+
+    public function show(WarehouseInventory $warehouseInventory)
+    {
+        return view('warehouse_inventories.show', compact('warehouseInventory'));
+    }
+
+    public function edit(WarehouseInventory $warehouseInventory)
+    {
+        return view('warehouse_inventories.edit', compact('warehouseInventory'));
+    }
+
+    public function update(Request $request, WarehouseInventory $warehouseInventory)
+    {
+        $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|integer|min:0',
+        ]);
+
+        $warehouseInventory->update($request->all());
+
+        return redirect()->route('warehouse_inventories.index')
+                        ->with('success', 'Warehouse inventory updated successfully.');
+    }
+
+    public function destroy(WarehouseInventory $warehouseInventory)
+    {
+        $warehouseInventory->delete();
+
+        return redirect()->route('warehouse_inventories.index')
+                        ->with('success', 'Warehouse inventory deleted successfully.');
+    }
+}
+Bu kodlarda, WarehouseInventory modeli ilə əlaqəli CRUD əməliyyatlarını təmin edən WarehouseInventoryController daxil edildi. Bu, anbar inventarının əlavə olunması, redaktə edilməsi, silinməsi və göstərilənə qədər digər funksiyaları əhatə edir.
+php
+Копировать код
+// routes/web.php
+
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseInventoryController;
+
+Route::resource('categories', CategoryController::class);
+Route::resource('products', ProductController::class);
+Route::resource('warehouses', WarehouseController::class);
+Route::resource('warehouse_inventories', WarehouseInventoryController::class);
+Bu marşrutlar, əsas CRUD əməliyyatlarını təmin edir. Bu, categories, products, warehouses və warehouse_inventories məlumatlarını yaratmaq, göstərmək, redaktə etmək və silmək üçündür. Öz istəyə uyğun olaraq marşrutlarda əlavə dəyişikliklər edə bilərsiniz, məsələn, əlavə məlumatları filtrləmək üçün marşrutlar əlavə edə bilərsiniz.
