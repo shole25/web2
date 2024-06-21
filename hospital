@@ -1,0 +1,472 @@
+Cədvəllər üçün Migrasiyalar
+Xəstələr (Patients) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000001_create_patients_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreatePatientsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('patients', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->date('date_of_birth');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('patients');
+    }
+}
+Həkimlər (Doctors) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000002_create_doctors_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateDoctorsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('doctors', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('specialization');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('doctors');
+    }
+}
+Qəbullar (Appointments) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000003_create_appointments_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateAppointmentsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('appointments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('patient_id')->constrained('patients');
+            $table->foreignId('doctor_id')->constrained('doctors');
+            $table->dateTime('appointment_date');
+            $table->string('status');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('appointments');
+    }
+}
+Departamentlər (Departments) cədvəli:
+php
+Копировать код
+// database/migrations/2024_06_22_000004_create_departments_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateDepartmentsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('departments', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('description')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('departments');
+    }
+}
+Modellər
+Patient Modeli:
+php
+Копировать код
+// app/Models/Patient.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Patient extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'email', 'date_of_birth'];
+}
+Doctor Modeli:
+php
+Копировать код
+// app/Models/Doctor.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Doctor extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'email', 'specialization'];
+}
+Appointment Modeli:
+php
+Копировать код
+// app/Models/Appointment.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Appointment extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['patient_id', 'doctor_id', 'appointment_date', 'status'];
+
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
+
+    public function doctor()
+    {
+        return $this->belongsTo(Doctor::class);
+    }
+}
+Department Modeli:
+php
+Копировать код
+// app/Models/Department.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Department extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description'];
+}
+Kontrollerlər
+PatientController:
+php
+Копировать код
+// app/Http/Controllers/PatientController.php
+namespace App\Http\Controllers;
+
+use App\Models\Patient;
+use Illuminate\Http\Request;
+
+class PatientController extends Controller
+{
+    public function index()
+    {
+        $patients = Patient::all();
+        return view('patients.index', compact('patients'));
+    }
+
+    public function create()
+    {
+        return view('patients.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:patients',
+            'date_of_birth' => 'required|date',
+        ]);
+
+        Patient::create($request->all());
+
+        return redirect()->route('patients.index')
+                        ->with('success', 'Patient created successfully.');
+    }
+
+    public function show(Patient $patient)
+    {
+        return view('patients.show', compact('patient'));
+    }
+
+    public function edit(Patient $patient)
+    {
+        return view('patients.edit', compact('patient'));
+    }
+
+    public function update(Request $request, Patient $patient)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:patients,email,' . $patient->id,
+            'date_of_birth' => 'required|date',
+        ]);
+
+        $patient->update($request->all());
+
+        return redirect()->route('patients.index')
+                        ->with('success', 'Patient updated successfully.');
+    }
+
+    public function destroy(Patient $patient)
+    {
+        $patient->delete();
+
+        return redirect()->route('patients.index')
+                        ->with('success', 'Patient deleted successfully.');
+    }
+}
+DoctorController:
+php
+Копировать код
+// app/Http/Controllers/DoctorController.php
+namespace App\Http\Controllers;
+
+use App\Models\Doctor;
+use Illuminate\Http\Request;
+
+class DoctorController extends Controller
+{
+    public function index()
+    {
+        $doctors = Doctor::all();
+        return view('doctors.index', compact('doctors'));
+    }
+
+    public function create()
+    {
+        return view('doctors.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:doctors',
+            'specialization' => 'required',
+        ]);
+
+        Doctor::create($request->all());
+
+        return redirect()->route('doctors.index')
+                        ->with('success', 'Doctor created successfully.');
+    }
+
+    public function show(Doctor $doctor)
+    {
+        return view('doctors.show', compact('doctor'));
+    }
+
+    public function edit(Doctor $doctor)
+    {
+        return view('doctors.edit', compact('doctor'));
+    }
+
+    public function update(Request $request, Doctor $doctor)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:doctors,email,' . $doctor->id,
+            'specialization' => 'required',
+        ]);
+
+        $doctor->update($request->all());
+
+        return redirect()->route('doctors.index')
+                        ->with('success', 'Doctor updated successfully.');
+    }
+
+    public function destroy(Doctor $doctor)
+    {
+        $doctor->delete();
+
+        return redirect()->route('doctors.index')
+                        ->with('success', 'Doctor deleted successfully.');
+    }
+}
+AppointmentController:
+php
+Копировать код
+// app/Http/Controllers/AppointmentController.php
+namespace App\Http\Controllers;
+
+use App\Models\Appointment;
+use App\Models\Patient;
+use App\Models\Doctor;
+use Illuminate\Http\Request;
+
+class AppointmentController extends Controller
+{
+    public function index()
+    {
+        $appointments = Appointment::with('patient', 'doctor')->get();
+        return view('appointments.index', compact('appointments'));
+    }
+
+    public function create()
+    {
+        $patients = Patient::all();
+        $doctors = Doctor::all();
+        return view('appointments.create', compact('patients', 'doctors'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'doctor_id' => 'required|exists:doctors,id',
+            'appointment_date' => 'required|date',
+            'status' => 'required',
+        ]);
+
+        Appointment::create($request->all());
+
+        return redirect()->route('appointments.index')
+                        ->with('success', 'Appointment created successfully.');
+    }
+
+    public function show(Appointment $appointment)
+    {
+        return view('appointments.show', compact('appointment'));
+    }
+
+    public function edit(Appointment $appointment)
+    {
+        $patients = Patient::all();
+        $doctors = Doctor::all();
+        return view('appointments.edit', compact('appointment', 'patients', 'doctors'));
+    }
+
+    public function update(Request $request, Appointment $appointment)
+    {
+        $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'doctor_id' => 'required|exists:
+
+php
+Копировать код
+doctors,id',
+            'appointment_date' => 'required|date',
+            'status' => 'required',
+        ]);
+
+        $appointment->update($request->all());
+
+        return redirect()->route('appointments.index')
+                        ->with('success', 'Appointment updated successfully.');
+    }
+
+    public function destroy(Appointment $appointment)
+    {
+        $appointment->delete();
+
+        return redirect()->route('appointments.index')
+                        ->with('success', 'Appointment deleted successfully.');
+    }
+}
+DepartmentController:
+php
+Копировать код
+// app/Http/Controllers/DepartmentController.php
+namespace App\Http\Controllers;
+
+use App\Models\Department;
+use Illuminate\Http\Request;
+
+class DepartmentController extends Controller
+{
+    public function index()
+    {
+        $departments = Department::all();
+        return view('departments.index', compact('departments'));
+    }
+
+    public function create()
+    {
+        return view('departments.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+        ]);
+
+        Department::create($request->all());
+
+        return redirect()->route('departments.index')
+                        ->with('success', 'Department created successfully.');
+    }
+
+    public function show(Department $department)
+    {
+        return view('departments.show', compact('department'));
+    }
+
+    public function edit(Department $department)
+    {
+        return view('departments.edit', compact('department'));
+    }
+
+    public function update(Request $request, Department $department)
+    {
+        $request->validate([
+            'name' => 'required',
+            'description' => 'nullable',
+        ]);
+
+        $department->update($request->all());
+
+        return redirect()->route('departments.index')
+                        ->with('success', 'Department updated successfully.');
+    }
+
+    public function destroy(Department $department)
+    {
+        $department->delete();
+
+        return redirect()->route('departments.index')
+                        ->with('success', 'Department deleted successfully.');
+    }
+}
+Marşrutlar (Routes)
+Web Marşrutlar Faylı (routes/web.php):
+php
+Копировать код
+use App\Http\Controllers\PatientController;
+use App\Http\Controllers\DoctorController;
+use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\DepartmentController;
+
+Route::resource('patients', PatientController::class);
+Route::resource('doctors', DoctorController::class);
+Route::resource('appointments', AppointmentController::class);
+Route::resource('departments', DepartmentController::class);
